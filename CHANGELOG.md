@@ -4,6 +4,27 @@
 
 All the cool stuff we've added, fixed, and improved. No boring corporate speak here - just the real updates that matter to you.
 
+## [1.0.3] - July 11, 2025 ✨
+
+### Polish & User Experience Improvements
+
+**Cleaner Progress Messages:**
+- Removed robot emoji from all progress messages for more professional appearance
+- Progress messages now show as clean "Seron is thinking..." instead of "🤖 Seron is thinking..."
+- Better visual consistency across all status updates
+
+**Improved Syntax Filtering:**
+- Enhanced filtering to completely remove `**SERON_CREATE_FILE:**` syntax from user-visible output
+- Users no longer see internal command markers in terminal
+- More aggressive regex patterns to catch all variations of special syntax
+- Cleaner separation between user content and background operations
+
+**What Users See Now:**
+- Before: "🤖 Seron is thinking... **SERON_CREATE_FILE: test.md**" (cluttered with technical details)
+- After: "Seron is thinking... I'll create a test.md file for you" (clean and professional)
+
+This update focuses on polish and creating a more professional, streamlined user experience while maintaining all the powerful automatic code execution capabilities.
+
 ## [1.0.2] - July 11, 2025 🔧
 
 ### Bug Fixes & User Experience Improvements

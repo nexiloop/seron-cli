@@ -185,11 +185,11 @@ Check if files exist before creating them. If a file exists, edit it instead.`;
     // Remove the special formatting markers and code blocks that follow them
     let filtered = content;
     
-    // Remove SERON_CREATE_FILE markers and their code blocks
-    filtered = filtered.replace(/\*\*SERON_CREATE_FILE:[^\*]*\*\*\s*```[^`]*```/g, '');
+    // Remove SERON_CREATE_FILE markers and their code blocks (more aggressive pattern)
+    filtered = filtered.replace(/\*\*SERON_CREATE_FILE:[^\*]*\*\*[\s\S]*?```[\s\S]*?```/g, '');
     
     // Remove SERON_EDIT_FILE markers and their code blocks  
-    filtered = filtered.replace(/\*\*SERON_EDIT_FILE:[^\*]*\*\*\s*```[^`]*```/g, '');
+    filtered = filtered.replace(/\*\*SERON_EDIT_FILE:[^\*]*\*\*[\s\S]*?```[\s\S]*?```/g, '');
     
     // Remove SERON_RUN_COMMAND markers
     filtered = filtered.replace(/\*\*SERON_RUN_COMMAND:[^\*]*\*\*/g, '');
@@ -197,6 +197,9 @@ Check if files exist before creating them. If a file exists, edit it instead.`;
     // Remove just the markers if they appear without code blocks
     filtered = filtered.replace(/\*\*SERON_CREATE_FILE:[^\*]*\*\*/g, '');
     filtered = filtered.replace(/\*\*SERON_EDIT_FILE:[^\*]*\*\*/g, '');
+    
+    // Remove any standalone ** markers that might be left
+    filtered = filtered.replace(/\*\*\s*$/g, '');
     
     return filtered;
   }
