@@ -17,13 +17,20 @@ import { modelsCommand } from './commands/models.js';
 import { configCommand } from './commands/config.js';
 import { getSeronBanner, getSeronTitle } from './utils/banner.js';
 import chalk from 'chalk';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+import { readFileSync } from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJson = JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf8'));
 
 const program = new Command();
 
 program
   .name('seron')
   .description('Seron CLI - Chat with multiple AI models with automatic code execution')
-  .version('1.0.5');
+  .version(packageJson.version);
 
 // Interactive main menu function
 async function showMainMenu() {

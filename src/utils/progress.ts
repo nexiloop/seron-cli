@@ -58,88 +58,87 @@ export class SeronProgress {
     switch (action) {
       case SERON_ACTIONS.THINKING:
         switch (phase) {
-          case 'start': return `is thinking...${detailsText}`;
-          case 'update': return `is processing...${detailsText}`;
-          case 'complete': return `finished thinking${detailsText}`;
-          case 'fail': return `encountered an error while thinking: ${detailsText}`;
-        }
-        break;
-
-      case SERON_ACTIONS.GENERATING:
-        switch (phase) {
-          case 'start': return `is generating response...${detailsText}`;
-          case 'update': return `is still generating...${detailsText}`;
-          case 'complete': return `finished generating response${detailsText}`;
-          case 'fail': return `failed to generate response: ${detailsText}`;
-        }
-        break;
-
-      case SERON_ACTIONS.CREATING_FILE:
-        switch (phase) {
-          case 'start': return `is creating file${detailsText}`;
-          case 'update': return `is writing file${detailsText}`;
-          case 'complete': return `created file${detailsText}`;
-          case 'fail': return `failed to create file: ${detailsText}`;
-        }
-        break;
-
-      case SERON_ACTIONS.EDITING_FILE:
-        switch (phase) {
-          case 'start': return `is editing file${detailsText}`;
-          case 'update': return `is modifying file${detailsText}`;
-          case 'complete': return `edited file${detailsText}`;
-          case 'fail': return `failed to edit file: ${detailsText}`;
-        }
-        break;
-
-      case SERON_ACTIONS.SEARCHING:
-        switch (phase) {
-          case 'start': return `is searching${detailsText}`;
-          case 'update': return `is looking through files${detailsText}`;
-          case 'complete': return `completed search${detailsText}`;
-          case 'fail': return `search failed: ${detailsText}`;
-        }
-        break;
-
-      case SERON_ACTIONS.RUNNING_COMMAND:
-        switch (phase) {
-          case 'start': return `is running command${detailsText}`;
-          case 'update': return `is executing${detailsText}`;
-          case 'complete': return `finished running command${detailsText}`;
-          case 'fail': return `command failed: ${detailsText}`;
-        }
-        break;
-
-      case SERON_ACTIONS.INSTALLING:
-        switch (phase) {
-          case 'start': return `is installing packages${detailsText}`;
-          case 'update': return `is downloading dependencies${detailsText}`;
-          case 'complete': return `installed packages${detailsText}`;
-          case 'fail': return `package installation failed: ${detailsText}`;
-        }
-        break;
-
-      case SERON_ACTIONS.BUILDING:
-        switch (phase) {
-          case 'start': return `is building project${detailsText}`;
-          case 'update': return `is compiling${detailsText}`;
-          case 'complete': return `built project${detailsText}`;
-          case 'fail': return `build failed: ${detailsText}`;
+          case 'start': return `Planning what to do...${detailsText}`;
+          case 'update': return `Still planning...${detailsText}`;
+          case 'complete': return `Finished planning${detailsText}`;
+          case 'fail': return `Failed to plan: ${detailsText}`;
         }
         break;
 
       case SERON_ACTIONS.ANALYZING:
         switch (phase) {
-          case 'start': return `is analyzing${detailsText}`;
-          case 'update': return `is examining code${detailsText}`;
-          case 'complete': return `finished analysis${detailsText}`;
-          case 'fail': return `analysis failed: ${detailsText}`;
+          case 'start': return `Analyzing ${detailsText}`;
+          case 'update': return `Still analyzing...${detailsText}`;
+          case 'complete': return `✓ ${detailsText}`;
+          case 'fail': return `Failed to analyze: ${detailsText}`;
         }
         break;
 
-      default:
-        return `is working${detailsText}`;
+      case SERON_ACTIONS.GENERATING:
+        switch (phase) {
+          case 'start': return `Preparing to create files and run commands...${detailsText}`;
+          case 'update': return `Working on the solution...${detailsText}`;
+          case 'complete': return `Ready to execute plan${detailsText}`;
+          case 'fail': return `Failed to generate solution: ${detailsText}`;
+        }
+        break;
+
+      case SERON_ACTIONS.CREATING_FILE:
+        switch (phase) {
+          case 'start': return `📝 Creating ${detailsText}`;
+          case 'update': return `Still creating ${detailsText}`;
+          case 'complete': return `✓ Created ${detailsText}`;
+          case 'fail': return `❌ Failed to create: ${detailsText}`;
+        }
+        break;
+
+      case SERON_ACTIONS.EDITING_FILE:
+        switch (phase) {
+          case 'start': return `✏️ Editing ${detailsText}`;
+          case 'update': return `Still editing ${detailsText}`;
+          case 'complete': return `✓ Updated ${detailsText}`;
+          case 'fail': return `❌ Failed to edit: ${detailsText}`;
+        }
+        break;
+
+      case SERON_ACTIONS.SEARCHING:
+        switch (phase) {
+          case 'start': return `🔍 ${detailsText}`;
+          case 'update': return `Still searching ${detailsText}`;
+          case 'complete': return `✓ ${detailsText}`;
+          case 'fail': return `❌ Search failed: ${detailsText}`;
+        }
+        break;
+
+      case SERON_ACTIONS.RUNNING_COMMAND:
+        switch (phase) {
+          case 'start': return `⚡ Running: ${detailsText}`;
+          case 'update': return `Still running: ${detailsText}`;
+          case 'complete': return `✓ Finished: ${detailsText}`;
+          case 'fail': return `❌ Command failed: ${detailsText}`;
+        }
+        break;
+
+      case SERON_ACTIONS.INSTALLING:
+        switch (phase) {
+          case 'start': return `📦 Installing ${detailsText}`;
+          case 'update': return `Still installing ${detailsText}`;
+          case 'complete': return `✓ Installed ${detailsText}`;
+          case 'fail': return `❌ Installation failed: ${detailsText}`;
+        }
+        break;
+
+      case SERON_ACTIONS.BUILDING:
+        switch (phase) {
+          case 'start': return `🔨 Building ${detailsText}`;
+          case 'update': return `Still building ${detailsText}`;
+          case 'complete': return `✓ Built ${detailsText}`;
+          case 'fail': return `❌ Build failed: ${detailsText}`;
+        }
+        break;
     }
+
+    return `${phase}: ${detailsText}`;
   }
 
   getCurrentAction(): SeronAction | null {

@@ -221,9 +221,25 @@ Check if files exist before creating them. If a file exists, edit it instead.`;
   private async parseAndExecuteCode(response: string, workingDirectory?: string): Promise<void> {
     const cwd = workingDirectory || process.cwd();
     
+    this.progress.startAction(SERON_ACTIONS.ANALYZING, 'planning file creation');
+    
     // Parse file creation markers
     const fileCreatePattern = /\*\*SERON_CREATE_FILE:\s*([^\*]+)\*\*\s*```(\w+)?\s*([\s\S]*?)```/g;
     let match;
+    
+    // First, check all files that would be created/modified
+    const filesToProcess = [];
+    let tempMatch;
+    while ((tempMatch = fileCreatePattern.exec(response)) !== null) {
+      const filename = tempMatch[1].trim();
+      const filePath = path.join(cwd, filename);
+      filesToProcess.push({ filename, exists: await this.fileSystem.fileExists(filePath) });
+    }
+
+    // Report plan
+    this.progress.completeAction(SERON_ACTIONS.ANALYZING, 
+      `Will ${filesToProcess.map(f => `${f.exists ? 'edit' : 'create'} ${f.filename}`).join(', ')} in ${cwd}`
+    );
     
     // Handle file creation markers
     while ((match = fileCreatePattern.exec(response)) !== null) {
@@ -238,55 +254,55 @@ Check if files exist before creating them. If a file exists, edit it instead.`;
         
         if (fileExists) {
           // Edit existing file
-          this.progress.startAction(SERON_ACTIONS.EDITING_FILE, filename);
+          this.progress.startAction(SERON_ACTIONS.EDITING_FILE, `${filename} in ${cwd}`);
           await this.fileSystem.editFile(filePath, content);
-          this.progress.completeAction(SERON_ACTIONS.EDITING_FILE, filename);
+          this.progress.completeAction(SERON_ACTIONS.EDITING_FILE, `${filename} updated in ${cwd}`);
         } else {
           // Create new file with proper extension based on language
-          this.progress.startAction(SERON_ACTIONS.CREATING_FILE, filename);
+          this.progress.startAction(SERON_ACTIONS.CREATING_FILE, `${filename} in ${cwd}`);
           
           // Ensure directory exists
           const dir = path.dirname(filePath);
           await this.fileSystem.createDirectory(dir);
           
           // Create file
-          await this.fileSystem.createFile(filePath, content);
-          this.progress.completeAction(SERON_ACTIONS.CREATING_FILE, filename);
+          await this.fileSystem.createFile(filePath, content, language);
+          this.progress.completeAction(SERON_ACTIONS.CREATING_FILE, `${filename} created in ${cwd}`);
         }
       } catch (error) {
-        this.progress.failAction(SERON_ACTIONS.CREATING_FILE, `${filename}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
-
-    // Parse file edit markers
-    const fileEditPattern = /\*\*SERON_EDIT_FILE:\s*([^\*]+)\*\*\s*```(\w+)?\s*([\s\S]*?)```/g;
-    
-    // Handle file edit markers
-    while ((match = fileEditPattern.exec(response)) !== null) {
-      const filename = match[1].trim();
-      const content = match[3].trim();
-      const filePath = path.join(cwd, filename);
-      
-      try {
-        this.progress.startAction(SERON_ACTIONS.EDITING_FILE, filename);
-        await this.fileSystem.editFile(filePath, content);
-        this.progress.completeAction(SERON_ACTIONS.EDITING_FILE, filename);
-      } catch (error) {
-        this.progress.failAction(SERON_ACTIONS.EDITING_FILE, `${filename}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        this.progress.failAction(SERON_ACTIONS.CREATING_FILE, 
+          `Failed to process ${filename} in ${cwd}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
       }
     }
 
     // Parse and execute commands
     const runCommandPattern = /\*\*SERON_RUN_COMMAND:\s*([^\*]+)\*\*/g;
+    const commandsToRun = [];
     
+    // First collect all commands
     while ((match = runCommandPattern.exec(response)) !== null) {
-      const command = match[1].trim();
+      commandsToRun.push(match[1].trim());
+    }
+
+    // Report command plan if any exist
+    if (commandsToRun.length > 0) {
+      this.progress.startAction(SERON_ACTIONS.ANALYZING, 'planning commands');
+      this.progress.completeAction(SERON_ACTIONS.ANALYZING, 
+        `Will run: ${commandsToRun.join(', ')} in ${cwd}`
+      );
+    }
+    
+    // Execute commands in sequence
+    for (const command of commandsToRun) {
       try {
-        this.progress.startAction(SERON_ACTIONS.RUNNING_COMMAND, command);
+        this.progress.startAction(SERON_ACTIONS.RUNNING_COMMAND, `${command} in ${cwd}`);
         await this.fileSystem.runCommand(command, cwd);
-        this.progress.completeAction(SERON_ACTIONS.RUNNING_COMMAND, command);
+        this.progress.completeAction(SERON_ACTIONS.RUNNING_COMMAND, `${command} completed in ${cwd}`);
       } catch (error) {
-        this.progress.failAction(SERON_ACTIONS.RUNNING_COMMAND, `${command}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        this.progress.failAction(SERON_ACTIONS.RUNNING_COMMAND, 
+          `Failed to run ${command} in ${cwd}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
       }
     }
   }
