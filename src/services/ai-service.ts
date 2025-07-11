@@ -3,8 +3,11 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Ollama } from 'ollama';
 import { HfInference } from '@huggingface/inference';
 import axios from 'axios';
+import * as path from 'path';
 import { AIModel, ChatMessage, ChatResponse, AVAILABLE_MODELS } from './ai-models.js';
 import { ConfigService } from './config.js';
+import { FileSystemService } from './filesystem.js';
+import { SeronProgress, SERON_ACTIONS } from '../utils/progress.js';
 
 export class AIService {
   private openai: OpenAI | null = null;
@@ -12,9 +15,13 @@ export class AIService {
   private ollama: Ollama | null = null;
   private huggingface: HfInference | null = null;
   private config: ConfigService;
+  private fileSystem: FileSystemService;
+  private progress: SeronProgress;
 
   constructor() {
     this.config = new ConfigService();
+    this.fileSystem = new FileSystemService();
+    this.progress = new SeronProgress();
     this.initializeClients();
   }
 
@@ -58,6 +65,158 @@ export class AIService {
         return this.chatWithXAI(messages, model);
       default:
         throw new Error(`Provider ${model.provider} not supported`);
+    }
+  }
+
+  // Enhanced chat with automatic code execution
+  async chatWithCodeExecution(messages: ChatMessage[], modelId: string, workingDirectory?: string): Promise<ChatResponse> {
+    this.progress.startAction(SERON_ACTIONS.THINKING);
+    
+    // Add system prompt for code generation with execution
+    const enhancedMessages = [...messages];
+    const codeSystemPrompt = `You are Seron, an AI coding assistant that can create and execute code directly in the user's directory. 
+
+When the user asks you to create files, build apps, or write code:
+1. Create the files directly in their current directory
+2. Execute any necessary commands (npm install, build, etc.)
+3. Don't show code blocks or ask the user to run commands - just do it automatically
+4. Use modern best practices and popular frameworks
+5. Always create working, complete applications
+
+Format file creation like this:
+**SERON_CREATE_FILE: filename.ext**
+\`\`\`language
+file content here
+\`\`\`
+
+Format commands like this:
+**SERON_RUN_COMMAND: npm install react**
+
+Current working directory: ${workingDirectory || process.cwd()}
+
+Always respond with what you did and what files you created, not code blocks.`;
+
+    // Check if there's already a system message
+    const systemIndex = enhancedMessages.findIndex(m => m.role === 'system');
+    if (systemIndex >= 0) {
+      enhancedMessages[systemIndex].content = `${enhancedMessages[systemIndex].content}\n\n${codeSystemPrompt}`;
+    } else {
+      enhancedMessages.unshift({ role: 'system', content: codeSystemPrompt });
+    }
+
+    this.progress.updateAction(SERON_ACTIONS.GENERATING);
+    
+    try {
+      const response = await this.chat(enhancedMessages, modelId);
+      this.progress.completeAction(SERON_ACTIONS.GENERATING);
+      
+      // Parse the response for code execution
+      await this.executeCodeFromResponse(response.content, workingDirectory);
+      
+      return response;
+    } catch (error) {
+      this.progress.failAction(SERON_ACTIONS.GENERATING, error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
+  }
+
+  // Enhanced streaming with progress and automatic code execution
+  async *chatStreamWithProgress(messages: ChatMessage[], modelId: string, workingDirectory?: string): AsyncGenerator<string, void, unknown> {
+    this.progress.startAction(SERON_ACTIONS.THINKING);
+    
+    const model = AVAILABLE_MODELS.find(m => m.id === modelId);
+    if (!model) {
+      this.progress.failAction(SERON_ACTIONS.THINKING, `Model ${modelId} not found`);
+      throw new Error(`Model ${modelId} not found`);
+    }
+
+    // Add enhanced system prompt
+    const enhancedMessages = [...messages];
+    const codeSystemPrompt = `You are Seron, an AI coding assistant. When creating files or writing code, structure your response to clearly indicate:
+
+Format file creation like this:
+**SERON_CREATE_FILE: filename.ext**
+\`\`\`language
+file content here
+\`\`\`
+
+Format commands like this:
+**SERON_RUN_COMMAND: npm install react**
+
+Current directory: ${workingDirectory || process.cwd()}`;
+
+    const systemIndex = enhancedMessages.findIndex(m => m.role === 'system');
+    if (systemIndex >= 0) {
+      enhancedMessages[systemIndex].content = `${enhancedMessages[systemIndex].content}\n\n${codeSystemPrompt}`;
+    } else {
+      enhancedMessages.unshift({ role: 'system', content: codeSystemPrompt });
+    }
+
+    this.progress.updateAction(SERON_ACTIONS.GENERATING);
+    
+    let fullResponse = '';
+    
+    try {
+      for await (const chunk of this.chatStream(enhancedMessages, modelId)) {
+        fullResponse += chunk;
+        yield chunk;
+      }
+      
+      this.progress.completeAction(SERON_ACTIONS.GENERATING);
+      
+      // Execute code after streaming is complete
+      await this.parseAndExecuteCode(fullResponse, workingDirectory);
+      
+    } catch (error) {
+      this.progress.failAction(SERON_ACTIONS.GENERATING, error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
+  }
+
+  private async executeCodeFromResponse(response: string, workingDirectory?: string): Promise<void> {
+    const cwd = workingDirectory || process.cwd();
+    await this.parseAndExecuteCode(response, cwd);
+  }
+
+  private async parseAndExecuteCode(response: string, workingDirectory?: string): Promise<void> {
+    const cwd = workingDirectory || process.cwd();
+    
+    // Look for file creation patterns: **SERON_CREATE_FILE: filename**
+    const fileCreatePattern = /\*\*SERON_CREATE_FILE:\s*([^\*]+)\*\*\s*```(\w+)?\s*([\s\S]*?)```/g;
+    let match;
+    
+    while ((match = fileCreatePattern.exec(response)) !== null) {
+      const filename = match[1].trim();
+      const content = match[3].trim();
+      const filePath = path.join(cwd, filename);
+      
+      try {
+        await this.fileSystem.createFile(filePath, content);
+      } catch (error) {
+        console.error(`Failed to create ${filename}:`, error);
+      }
+    }
+    
+    // Look for command execution patterns: **SERON_RUN_COMMAND: command**
+    const commandPattern = /\*\*SERON_RUN_COMMAND:\s*([^\*]+)\*\*/g;
+    while ((match = commandPattern.exec(response)) !== null) {
+      const command = match[1].trim();
+      try {
+        await this.fileSystem.runCommand(command, cwd);
+      } catch (error) {
+        console.error(`Failed to run command ${command}:`, error);
+      }
+    }
+    
+    // Also look for npm install commands in text
+    const npmInstallPattern = /npm install\s+([^\s\n]+)/g;
+    while ((match = npmInstallPattern.exec(response)) !== null) {
+      const packageName = match[1];
+      try {
+        await this.fileSystem.installPackage(packageName);
+      } catch (error) {
+        console.error(`Failed to install ${packageName}:`, error);
+      }
     }
   }
 

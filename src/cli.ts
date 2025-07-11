@@ -1,5 +1,14 @@
 #!/usr/bin/env node
 
+// Suppress punycode deprecation warning
+process.removeAllListeners('warning');
+process.on('warning', (warning) => {
+  if (warning.name === 'DeprecationWarning' && warning.message.includes('punycode')) {
+    return; // Ignore punycode deprecation warnings
+  }
+  console.warn(warning.name + ': ' + warning.message);
+});
+
 import { Command } from 'commander';
 import inquirer from 'inquirer';
 import { setupCommand } from './commands/setup.js';
@@ -13,8 +22,8 @@ const program = new Command();
 
 program
   .name('seron')
-  .description('Seron CLI - Chat with multiple AI models')
-  .version('1.0.0');
+  .description('Seron CLI - Chat with multiple AI models with automatic code execution')
+  .version('1.0.1');
 
 // Interactive main menu function
 async function showMainMenu() {
