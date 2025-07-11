@@ -1,4 +1,4 @@
-# Seron CLI v1.0.2
+# Seron CLI
 
 *A powerful CLI for chatting with multiple AI models - now with automatic code execution*
 
@@ -14,15 +14,6 @@
 **Open source** | **Multiple AI providers** | **Automatic code execution**
 
 ---
-
-## What's New in v1.0.2?
-
-**Bug fixes and improvements:**
-
-- **Clean User Interface**: Fixed issue where internal command syntax was shown to users
-- **Smart File Handling**: Automatically detects existing files and edits them instead of creating duplicates
-- **Better Error Handling**: Improved file operations and command execution
-- **Enhanced AI Instructions**: Cleaner separation between user messages and background operations
 
 ## About Seron
 
