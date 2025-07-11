@@ -23,7 +23,7 @@ const program = new Command();
 program
   .name('seron')
   .description('Seron CLI - Chat with multiple AI models with automatic code execution')
-  .version('1.0.3');
+  .version('1.0.5');
 
 // Interactive main menu function
 async function showMainMenu() {

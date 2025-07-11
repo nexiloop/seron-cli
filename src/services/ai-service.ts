@@ -83,6 +83,15 @@ When the user asks you to create files, build apps, or write code:
 4. Use modern best practices and popular frameworks
 5. Always create working, complete applications
 
+You can create any type of file including but not limited to:
+- JavaScript (.js) and TypeScript (.ts)
+- React/Vue components (.jsx, .tsx, .vue)
+- HTML, CSS, SCSS/SASS
+- Python (.py), Ruby (.rb), Go (.go)
+- Configuration files (.json, .yml, .config.js)
+- Documentation (.md)
+- Test files (.test.js, .spec.ts)
+
 Format file creation like this:
 **SERON_CREATE_FILE: filename.ext**
 \`\`\`language
@@ -212,63 +221,72 @@ Check if files exist before creating them. If a file exists, edit it instead.`;
   private async parseAndExecuteCode(response: string, workingDirectory?: string): Promise<void> {
     const cwd = workingDirectory || process.cwd();
     
-    // Look for file creation patterns: **SERON_CREATE_FILE: filename**
+    // Parse file creation markers
     const fileCreatePattern = /\*\*SERON_CREATE_FILE:\s*([^\*]+)\*\*\s*```(\w+)?\s*([\s\S]*?)```/g;
     let match;
     
+    // Handle file creation markers
     while ((match = fileCreatePattern.exec(response)) !== null) {
       const filename = match[1].trim();
+      const language = match[2] || '';
       const content = match[3].trim();
       const filePath = path.join(cwd, filename);
       
       try {
         // Check if file already exists
         const fileExists = await this.fileSystem.fileExists(filePath);
+        
         if (fileExists) {
-          // Edit the existing file instead
+          // Edit existing file
+          this.progress.startAction(SERON_ACTIONS.EDITING_FILE, filename);
           await this.fileSystem.editFile(filePath, content);
+          this.progress.completeAction(SERON_ACTIONS.EDITING_FILE, filename);
         } else {
-          // Create new file
+          // Create new file with proper extension based on language
+          this.progress.startAction(SERON_ACTIONS.CREATING_FILE, filename);
+          
+          // Ensure directory exists
+          const dir = path.dirname(filePath);
+          await this.fileSystem.createDirectory(dir);
+          
+          // Create file
           await this.fileSystem.createFile(filePath, content);
+          this.progress.completeAction(SERON_ACTIONS.CREATING_FILE, filename);
         }
       } catch (error) {
-        console.error(`Failed to create/edit ${filename}:`, error);
+        this.progress.failAction(SERON_ACTIONS.CREATING_FILE, `${filename}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
-    
-    // Look for file editing patterns: **SERON_EDIT_FILE: filename**
+
+    // Parse file edit markers
     const fileEditPattern = /\*\*SERON_EDIT_FILE:\s*([^\*]+)\*\*\s*```(\w+)?\s*([\s\S]*?)```/g;
+    
+    // Handle file edit markers
     while ((match = fileEditPattern.exec(response)) !== null) {
       const filename = match[1].trim();
       const content = match[3].trim();
       const filePath = path.join(cwd, filename);
       
       try {
+        this.progress.startAction(SERON_ACTIONS.EDITING_FILE, filename);
         await this.fileSystem.editFile(filePath, content);
+        this.progress.completeAction(SERON_ACTIONS.EDITING_FILE, filename);
       } catch (error) {
-        console.error(`Failed to edit ${filename}:`, error);
+        this.progress.failAction(SERON_ACTIONS.EDITING_FILE, `${filename}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
+
+    // Parse and execute commands
+    const runCommandPattern = /\*\*SERON_RUN_COMMAND:\s*([^\*]+)\*\*/g;
     
-    // Look for command execution patterns: **SERON_RUN_COMMAND: command**
-    const commandPattern = /\*\*SERON_RUN_COMMAND:\s*([^\*]+)\*\*/g;
-    while ((match = commandPattern.exec(response)) !== null) {
+    while ((match = runCommandPattern.exec(response)) !== null) {
       const command = match[1].trim();
       try {
+        this.progress.startAction(SERON_ACTIONS.RUNNING_COMMAND, command);
         await this.fileSystem.runCommand(command, cwd);
+        this.progress.completeAction(SERON_ACTIONS.RUNNING_COMMAND, command);
       } catch (error) {
-        console.error(`Failed to run command ${command}:`, error);
-      }
-    }
-    
-    // Also look for npm install commands in text
-    const npmInstallPattern = /npm install\s+([^\s\n]+)/g;
-    while ((match = npmInstallPattern.exec(response)) !== null) {
-      const packageName = match[1];
-      try {
-        await this.fileSystem.installPackage(packageName);
-      } catch (error) {
-        console.error(`Failed to install ${packageName}:`, error);
+        this.progress.failAction(SERON_ACTIONS.RUNNING_COMMAND, `${command}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
   }
