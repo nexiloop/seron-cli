@@ -1,6 +1,6 @@
 {
   "name": "seron-cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Seron CLI - Chat with multiple AI models from your terminal with automatic code execution",
   "main": "dist/index.js",
   "bin": {

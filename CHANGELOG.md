@@ -4,6 +4,77 @@
 
 All the cool stuff we've added, fixed, and improved. No boring corporate speak here - just the real updates that matter to you.
 
+## [1.0.2] - July 11, 2025 🔧
+
+### Bug Fixes & User Experience Improvements
+
+**Fixed the Internal Syntax Display Issue:**
+- Users were seeing raw formatting syntax like `**SERON_CREATE_FILE: hi.md**` in the terminal
+- Now all internal command markers are filtered out from user-visible responses
+- Only clean, friendly messages are shown to users
+
+**Smart File Handling:**
+- Seron now checks if files already exist before creating them
+- If a file exists, it edits the file instead of trying to create a duplicate
+- No more file creation errors when files already exist
+
+**Enhanced AI Instructions:**
+- Improved system prompts to prevent internal syntax from appearing in responses
+- Better guidance for AI on when to create vs edit files
+- Cleaner separation between user-visible content and background operations
+
+**What Users See Now:**
+- Before: `**SERON_CREATE_FILE: filename.js**` (confusing technical syntax)
+- After: "I'll create a new JavaScript file for you" + progress messages (clean and clear)
+
+This update makes Seron much more user-friendly by hiding all the technical implementation details while still providing the same powerful automatic code execution capabilities.
+
+## [1.0.1] - July 11, 2025 🚀
+
+### SERON JUST GOT SUPERPOWERS
+
+Okay so like, we literally just dropped some INSANE updates and Seron is now basically a coding wizard that does everything for you. No cap, this update is actually game-changing:
+
+**🤖 Smart Progress Messages - You'll Know What's Happening:**
+- "🤖 Seron is thinking..." - When it's processing your request
+- "🤖 Seron is creating file filename.js" - Watch files get created in real-time
+- "🤖 Seron is editing file package.json" - See exactly what's being modified
+- "🤖 Seron is running command npm install react" - Commands execute automatically
+- "🤖 Seron is installing packages..." - Package management handled for you
+- "✅ Seron created file successfully" - Instant success feedback
+
+**⚡ Automatic Code Execution - The Future is Here:**
+- Just say "create a React app" and watch Seron actually build it
+- No more copy-paste from terminal - Seron runs commands for you
+- Automatic npm package installation when AI suggests dependencies
+- File creation happens directly in your directory
+- Build commands execute automatically
+- Zero manual work - describe what you want, get a working project
+
+**🎯 Enhanced Chat Experience:**
+- Real-time streaming with progress feedback
+- Enhanced system prompts that understand code execution
+- Automatic file parsing and command extraction from AI responses
+- Working directory awareness for proper file placement
+
+**🛠️ New Technical Architecture:**
+- **FileSystemService**: Handles all file operations with progress tracking
+- **SeronProgress**: Smart progress message system with timing
+- **Enhanced AIService**: Automatic code execution capabilities
+- **Improved Chat Command**: Streaming with progress and auto-execution
+
+**📚 Documentation Glow-Up:**
+- README completely rewritten to showcase new features
+- Real examples showing complete app creation
+- Progress message documentation
+- Enhanced CLI descriptions
+
+**What This Actually Means:**
+Before: "Hey Seron, how do I create a React app?" *gets code block* *copies to terminal*
+Now: "Hey Seron, create a React app with TypeScript" *watches Seron build everything automatically*
+
+This is literally the future of AI development tools. No more switching between chat and terminal - just describe what you want and Seron builds it for you while showing exactly what it's doing.
+
 ## [1.0.0] - July 11, 2025 🎉
 
 ### The Birth of Something Special ✨

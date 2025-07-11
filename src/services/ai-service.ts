@@ -132,18 +132,18 @@ Always respond with what you did and what files you created, not code blocks.`;
 
     // Add enhanced system prompt
     const enhancedMessages = [...messages];
-    const codeSystemPrompt = `You are Seron, an AI coding assistant. When creating files or writing code, structure your response to clearly indicate:
+    const codeSystemPrompt = `You are Seron, an AI coding assistant. When creating files or writing code:
 
-Format file creation like this:
-**SERON_CREATE_FILE: filename.ext**
-\`\`\`language
-file content here
-\`\`\`
+IMPORTANT: Use these special markers ONLY for actions, they will not be shown to the user:
+- **SERON_CREATE_FILE: filename.ext** (for new files)
+- **SERON_EDIT_FILE: filename.ext** (for existing files)
+- **SERON_RUN_COMMAND: command** (for terminal commands)
 
-Format commands like this:
-**SERON_RUN_COMMAND: npm install react**
+Always describe what you're doing in normal text, then use the markers.
 
-Current directory: ${workingDirectory || process.cwd()}`;
+Current directory: ${workingDirectory || process.cwd()}
+
+Check if files exist before creating them. If a file exists, edit it instead.`;
 
     const systemIndex = enhancedMessages.findIndex(m => m.role === 'system');
     if (systemIndex >= 0) {
@@ -155,22 +155,50 @@ Current directory: ${workingDirectory || process.cwd()}`;
     this.progress.updateAction(SERON_ACTIONS.GENERATING);
     
     let fullResponse = '';
+    let filteredResponse = '';
     
     try {
       for await (const chunk of this.chatStream(enhancedMessages, modelId)) {
         fullResponse += chunk;
-        yield chunk;
+        
+        // Filter out the special formatting syntax from what we show to the user
+        const filteredChunk = this.filterSpecialSyntax(chunk);
+        if (filteredChunk) {
+          filteredResponse += filteredChunk;
+          yield filteredChunk;
+        }
       }
       
       this.progress.completeAction(SERON_ACTIONS.GENERATING);
       
-      // Execute code after streaming is complete
+      // Execute code after streaming is complete, but use the full response for parsing
       await this.parseAndExecuteCode(fullResponse, workingDirectory);
       
     } catch (error) {
       this.progress.failAction(SERON_ACTIONS.GENERATING, error instanceof Error ? error.message : 'Unknown error');
       throw error;
     }
+  }
+
+  // Filter out special syntax from user-visible content
+  private filterSpecialSyntax(content: string): string {
+    // Remove the special formatting markers and code blocks that follow them
+    let filtered = content;
+    
+    // Remove SERON_CREATE_FILE markers and their code blocks
+    filtered = filtered.replace(/\*\*SERON_CREATE_FILE:[^\*]*\*\*\s*```[^`]*```/g, '');
+    
+    // Remove SERON_EDIT_FILE markers and their code blocks  
+    filtered = filtered.replace(/\*\*SERON_EDIT_FILE:[^\*]*\*\*\s*```[^`]*```/g, '');
+    
+    // Remove SERON_RUN_COMMAND markers
+    filtered = filtered.replace(/\*\*SERON_RUN_COMMAND:[^\*]*\*\*/g, '');
+    
+    // Remove just the markers if they appear without code blocks
+    filtered = filtered.replace(/\*\*SERON_CREATE_FILE:[^\*]*\*\*/g, '');
+    filtered = filtered.replace(/\*\*SERON_EDIT_FILE:[^\*]*\*\*/g, '');
+    
+    return filtered;
   }
 
   private async executeCodeFromResponse(response: string, workingDirectory?: string): Promise<void> {
@@ -191,9 +219,31 @@ Current directory: ${workingDirectory || process.cwd()}`;
       const filePath = path.join(cwd, filename);
       
       try {
-        await this.fileSystem.createFile(filePath, content);
+        // Check if file already exists
+        const fileExists = await this.fileSystem.fileExists(filePath);
+        if (fileExists) {
+          // Edit the existing file instead
+          await this.fileSystem.editFile(filePath, content);
+        } else {
+          // Create new file
+          await this.fileSystem.createFile(filePath, content);
+        }
       } catch (error) {
-        console.error(`Failed to create ${filename}:`, error);
+        console.error(`Failed to create/edit ${filename}:`, error);
+      }
+    }
+    
+    // Look for file editing patterns: **SERON_EDIT_FILE: filename**
+    const fileEditPattern = /\*\*SERON_EDIT_FILE:\s*([^\*]+)\*\*\s*```(\w+)?\s*([\s\S]*?)```/g;
+    while ((match = fileEditPattern.exec(response)) !== null) {
+      const filename = match[1].trim();
+      const content = match[3].trim();
+      const filePath = path.join(cwd, filename);
+      
+      try {
+        await this.fileSystem.editFile(filePath, content);
+      } catch (error) {
+        console.error(`Failed to edit ${filename}:`, error);
       }
     }
     
