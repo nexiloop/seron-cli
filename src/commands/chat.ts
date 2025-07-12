@@ -162,18 +162,37 @@ export async function chatCommand(options: ChatOptions) {
       // Use enhanced streaming with progress and code execution
       process.stdout.write(chalk.green('Seron: '));
       let response = '';
+      let lastChunkEndsWithSpace = false;
+      let isFirstChunk = true;
       
       const workingDirectory = process.cwd();
       
       for await (const chunk of aiService.chatStreamWithProgress(messages, currentModel, workingDirectory)) {
-        process.stdout.write(chunk);
-        response += chunk;
+        // Skip empty chunks
+        if (!chunk.trim()) continue;
+
+        // Clean up chunk and handle word spacing
+        const cleanChunk = chunk.replace(/\s+/g, ' ');
+        
+        // Add space between words if needed, except at the start
+        if (!isFirstChunk && !lastChunkEndsWithSpace && !cleanChunk.startsWith(' ')) {
+          process.stdout.write(' ');
+          response += ' ';
+        }
+        
+        process.stdout.write(cleanChunk);
+        response += cleanChunk;
+        lastChunkEndsWithSpace = cleanChunk.endsWith(' ');
+        isFirstChunk = false;
       }
       
-      console.log('\n');
+      // Only add newline if we actually wrote something
+      if (!isFirstChunk) {
+        console.log();
+      }
       
       // Add AI response to history
-      messages.push({ role: 'assistant', content: response });
+      messages.push({ role: 'assistant', content: response.trim() });
       
     } catch (error) {
       console.log(chalk.red(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`));

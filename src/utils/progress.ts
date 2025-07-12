@@ -25,25 +25,28 @@ export class SeronProgress {
     this.startTime = Date.now();
     
     const message = this.getActionMessage(action, 'start', details);
-    const prefix = this.gradient('Seron');
-    console.log(`${prefix} ${chalk.cyan(message)}`);
+    if (message) {
+      const prefix = this.gradient('Seron');
+      console.log(`${prefix} ${chalk.cyan(message)}`);
+    }
   }
 
   updateAction(action: SeronAction, details?: string): void {
     this.currentAction = action;
     
     const message = this.getActionMessage(action, 'update', details);
-    const prefix = this.gradient('Seron');
-    console.log(`${prefix} ${chalk.yellow(message)}`);
+    if (message) {
+      const prefix = this.gradient('Seron');
+      console.log(`${prefix} ${chalk.yellow(message)}`);
+    }
   }
 
   completeAction(action: SeronAction, details?: string): void {
-    const duration = this.startTime > 0 ? Date.now() - this.startTime : 0;
-    const durationText = duration > 0 ? ` ${chalk.gray(`(${duration}ms)`)}` : '';
-    
     const message = this.getActionMessage(action, 'complete', details);
-    const prefix = this.gradient('Seron');
-    console.log(`${prefix} ${chalk.green(message)}${durationText}`);
+    if (message) {
+      const prefix = this.gradient('Seron');
+      console.log(`${prefix} ${chalk.green(message)}`);
+    }
     
     this.currentAction = null;
     this.startTime = 0;
@@ -51,100 +54,73 @@ export class SeronProgress {
 
   failAction(action: SeronAction, error: string): void {
     const message = this.getActionMessage(action, 'fail', error);
-    const prefix = this.gradient('Seron');
-    console.log(`${prefix} ${chalk.red(message)}`);
+    if (message) {
+      const prefix = this.gradient('Seron');
+      console.log(`${prefix} ${chalk.red(message)}`);
+    }
     
     this.currentAction = null;
     this.startTime = 0;
   }
 
   private getActionMessage(action: SeronAction, phase: 'start' | 'update' | 'complete' | 'fail', details?: string): string {
-    const detailsText = details ? ` ${details}` : '';
-    
     switch (action) {
       case SERON_ACTIONS.THINKING:
-        switch (phase) {
-          case 'start': return `🤔 Analyzing request...${detailsText}`;
-          case 'update': return `🧮 Processing...${detailsText}`;
-          case 'complete': return `✨ Analysis complete${detailsText}`;
-          case 'fail': return `❌ Analysis failed: ${detailsText}`;
-        }
-        break;
-
-      case SERON_ACTIONS.ANALYZING:
-        switch (phase) {
-          case 'start': return `🔍 Checking ${detailsText}`;
-          case 'update': return `🔄 Validating ${detailsText}`;
-          case 'complete': return `✅ ${detailsText}`;
-          case 'fail': return `❌ Check failed: ${detailsText}`;
-        }
-        break;
+        if (phase === 'start') return 'Analyzing request...';
+        if (phase === 'complete') return 'Done';
+        if (phase === 'fail') return `Failed: ${details}`;
+        return '';
 
       case SERON_ACTIONS.GENERATING:
-        switch (phase) {
-          case 'start': return `🎯 Planning actions...${detailsText}`;
-          case 'update': return `⚡ Generating solution...${detailsText}`;
-          case 'complete': return `✨ Plan ready${detailsText}`;
-          case 'fail': return `❌ Planning failed: ${detailsText}`;
-        }
-        break;
+        if (phase === 'start') return 'Working...';
+        if (phase === 'complete') return 'Done';
+        if (phase === 'fail') return `Failed: ${details}`;
+        return '';
 
       case SERON_ACTIONS.CREATING_FILE:
-        switch (phase) {
-          case 'start': return `📝 Creating ${detailsText}`;
-          case 'update': return `🔄 Writing ${detailsText}`;
-          case 'complete': return `✅ Created ${detailsText}`;
-          case 'fail': return `❌ Creation failed: ${detailsText}`;
-        }
-        break;
+        if (phase === 'start') return details ? `Creating ${details}` : '';
+        if (phase === 'complete') return details ? `✓ Created ${details}` : '';
+        if (phase === 'fail') return `Failed: ${details}`;
+        return '';
 
       case SERON_ACTIONS.EDITING_FILE:
-        switch (phase) {
-          case 'start': return `✏️ Modifying ${detailsText}`;
-          case 'update': return `🔄 Updating ${detailsText}`;
-          case 'complete': return `✅ Updated ${detailsText}`;
-          case 'fail': return `❌ Update failed: ${detailsText}`;
-        }
-        break;
+        if (phase === 'start') return details ? `Editing ${details}` : '';
+        if (phase === 'complete') return details ? `✓ Updated ${details}` : '';
+        if (phase === 'fail') return `Failed: ${details}`;
+        return '';
 
       case SERON_ACTIONS.SEARCHING:
-        switch (phase) {
-          case 'start': return `🔎 ${detailsText}`;
-          case 'update': return `🔄 ${detailsText}`;
-          case 'complete': return `✅ ${detailsText}`;
-          case 'fail': return `❌ ${detailsText}`;
-        }
-        break;
+        if (phase === 'start' && details) return details;
+        if (phase === 'complete' && details) return details;
+        if (phase === 'fail') return `Not found: ${details}`;
+        return '';
 
       case SERON_ACTIONS.RUNNING_COMMAND:
-        switch (phase) {
-          case 'start': return `⚡ Running: ${detailsText}`;
-          case 'update': return `🔄 Executing: ${detailsText}`;
-          case 'complete': return `✅ Executed: ${detailsText}`;
-          case 'fail': return `❌ Command failed: ${detailsText}`;
-        }
-        break;
+        if (phase === 'start' && details) return `Running: ${details}`;
+        if (phase === 'complete') return '✓ Done';
+        if (phase === 'fail') return `Failed: ${details}`;
+        return '';
 
       case SERON_ACTIONS.INSTALLING:
-        switch (phase) {
-          case 'start': return `📦 Installing ${detailsText}`;
-          case 'update': return `🔄 Downloading ${detailsText}`;
-          case 'complete': return `✅ Installed ${detailsText}`;
-          case 'fail': return `❌ Installation failed: ${detailsText}`;
-        }
-        break;
+        if (phase === 'start' && details) return `Installing ${details}`;
+        if (phase === 'complete') return details ? `✓ Installed ${details}` : '✓ Done';
+        if (phase === 'fail') return `Failed: ${details}`;
+        return '';
 
       case SERON_ACTIONS.BUILDING:
-        switch (phase) {
-          case 'start': return `🔨 Building ${detailsText}`;
-          case 'update': return `🔄 Compiling ${detailsText}`;
-          case 'complete': return `✅ Built ${detailsText}`;
-          case 'fail': return `❌ Build failed: ${detailsText}`;
-        }
-        break;
+        if (phase === 'start' && details) return `Building ${details}`;
+        if (phase === 'complete') return '✓ Built successfully';
+        if (phase === 'fail') return `Failed: ${details}`;
+        return '';
+
+      case SERON_ACTIONS.ANALYZING:
+        if (phase === 'start' && details) return details;
+        if (phase === 'complete' && details) return details;
+        if (phase === 'fail') return `Failed: ${details}`;
+        return '';
     }
 
-    return `${phase}: ${detailsText}`;
+    return '';
   }
 
   getCurrentAction(): SeronAction | null {
