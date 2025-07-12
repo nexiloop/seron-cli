@@ -76,34 +76,56 @@ export class AIService {
     const enhancedMessages = [...messages];
     const codeSystemPrompt = `You are Seron, an AI coding assistant that can create and execute code directly in the user's directory. 
 
-When the user asks you to create files, build apps, or write code:
-1. Create the files directly in their current directory
-2. Execute any necessary commands (npm install, build, etc.)
-3. Don't show code blocks or ask the user to run commands - just do it automatically
-4. Use modern best practices and popular frameworks
-5. Always create working, complete applications
+When creating files or modifying code:
+1. ALWAYS use proper file creation syntax
+2. ALWAYS include a language identifier in code blocks
+3. ALWAYS include proper content based on file type
+4. NEVER leave code blocks empty
+5. Double-check all paths and content
 
-You can create any type of file including but not limited to:
-- JavaScript (.js) and TypeScript (.ts)
-- React/Vue components (.jsx, .tsx, .vue)
-- HTML, CSS, SCSS/SASS
-- Python (.py), Ruby (.rb), Go (.go)
-- Configuration files (.json, .yml, .config.js)
-- Documentation (.md)
-- Test files (.test.js, .spec.ts)
-
-Format file creation like this:
+Format file creation EXACTLY like this (notice the language after first \`\`\`):
 **SERON_CREATE_FILE: filename.ext**
 \`\`\`language
-file content here
+content here
 \`\`\`
 
-Format commands like this:
-**SERON_RUN_COMMAND: npm install react**
+Examples of proper file creation:
+For Python:
+**SERON_CREATE_FILE: script.py**
+\`\`\`python
+#!/usr/bin/env python3
+def main():
+    print("Hello World")
+\`\`\`
+
+For JavaScript:
+**SERON_CREATE_FILE: app.js**
+\`\`\`javascript
+'use strict';
+console.log('Hello World');
+\`\`\`
+
+For HTML:
+**SERON_CREATE_FILE: index.html**
+\`\`\`html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+</body>
+</html>
+\`\`\`
 
 Current working directory: ${workingDirectory || process.cwd()}
 
-Always respond with what you did and what files you created, not code blocks.`;
+Remember to:
+1. Check if directories exist before creating files
+2. Create all necessary parent directories
+3. Use proper file extensions and templates
+4. Add proper headers and metadata`;
 
     // Check if there's already a system message
     const systemIndex = enhancedMessages.findIndex(m => m.role === 'system');
@@ -119,8 +141,8 @@ Always respond with what you did and what files you created, not code blocks.`;
       const response = await this.chat(enhancedMessages, modelId);
       this.progress.completeAction(SERON_ACTIONS.GENERATING);
       
-      // Parse the response for code execution
-      await this.executeCodeFromResponse(response.content, workingDirectory);
+      // Parse and execute the response with thorough checking
+      await this.parseAndExecuteCode(response.content, workingDirectory);
       
       return response;
     } catch (error) {
@@ -194,20 +216,14 @@ Check if files exist before creating them. If a file exists, edit it instead.`;
     // Remove the special formatting markers and code blocks that follow them
     let filtered = content;
     
-    // Remove SERON_CREATE_FILE markers and their code blocks (more aggressive pattern)
-    filtered = filtered.replace(/\*\*SERON_CREATE_FILE:[^\*]*\*\*[\s\S]*?```[\s\S]*?```/g, '');
+    // More aggressive pattern to remove markers and their code blocks
+    filtered = filtered.replace(/\*\*SERON_CREATE_FILE:[^\*]*\*\*\s*```[^`]*```/gs, '');
+    filtered = filtered.replace(/\*\*SERON_EDIT_FILE:[^\*]*\*\*\s*```[^`]*```/gs, '');
+    filtered = filtered.replace(/\*\*SERON_RUN_COMMAND:[^\*]*\*\*/gs, '');
     
-    // Remove SERON_EDIT_FILE markers and their code blocks  
-    filtered = filtered.replace(/\*\*SERON_EDIT_FILE:[^\*]*\*\*[\s\S]*?```[\s\S]*?```/g, '');
-    
-    // Remove SERON_RUN_COMMAND markers
-    filtered = filtered.replace(/\*\*SERON_RUN_COMMAND:[^\*]*\*\*/g, '');
-    
-    // Remove just the markers if they appear without code blocks
+    // Remove any leftover markers
     filtered = filtered.replace(/\*\*SERON_CREATE_FILE:[^\*]*\*\*/g, '');
     filtered = filtered.replace(/\*\*SERON_EDIT_FILE:[^\*]*\*\*/g, '');
-    
-    // Remove any standalone ** markers that might be left
     filtered = filtered.replace(/\*\*\s*$/g, '');
     
     return filtered;
@@ -221,89 +237,147 @@ Check if files exist before creating them. If a file exists, edit it instead.`;
   private async parseAndExecuteCode(response: string, workingDirectory?: string): Promise<void> {
     const cwd = workingDirectory || process.cwd();
     
-    this.progress.startAction(SERON_ACTIONS.ANALYZING, 'planning file creation');
+    // Initial analysis phase
+    this.progress.startAction(SERON_ACTIONS.ANALYZING, 'checking workspace and files');
     
-    // Parse file creation markers
+    // Verify working directory exists
+    try {
+      await this.fileSystem.createDirectory(cwd);
+    } catch (error) {
+      this.progress.failAction(SERON_ACTIONS.ANALYZING, `Invalid working directory ${cwd}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return;
+    }
+    
+    // Parse and validate file creation markers
     const fileCreatePattern = /\*\*SERON_CREATE_FILE:\s*([^\*]+)\*\*\s*```(\w+)?\s*([\s\S]*?)```/g;
     let match;
-    
-    // First, check all files that would be created/modified
     const filesToProcess = [];
-    let tempMatch;
-    while ((tempMatch = fileCreatePattern.exec(response)) !== null) {
-      const filename = tempMatch[1].trim();
-      const filePath = path.join(cwd, filename);
-      filesToProcess.push({ filename, exists: await this.fileSystem.fileExists(filePath) });
-    }
-
-    // Report plan
-    this.progress.completeAction(SERON_ACTIONS.ANALYZING, 
-      `Will ${filesToProcess.map(f => `${f.exists ? 'edit' : 'create'} ${f.filename}`).join(', ')} in ${cwd}`
-    );
     
-    // Handle file creation markers
+    // First pass: collect and validate all file operations
     while ((match = fileCreatePattern.exec(response)) !== null) {
       const filename = match[1].trim();
       const language = match[2] || '';
       const content = match[3].trim();
       const filePath = path.join(cwd, filename);
       
+      // Validation checks
+      if (!filename) {
+        this.progress.failAction(SERON_ACTIONS.ANALYZING, 'Empty filename detected');
+        continue;
+      }
+      
+      if (!content) {
+        this.progress.failAction(SERON_ACTIONS.ANALYZING, `Empty content for ${filename}`);
+        continue;
+      }
+
+      filesToProcess.push({
+        filename,
+        language,
+        content,
+        filePath,
+        exists: await this.fileSystem.fileExists(filePath)
+      });
+    }
+
+    // Report plan
+    if (filesToProcess.length > 0) {
+      this.progress.completeAction(SERON_ACTIONS.ANALYZING, 
+        `Found ${filesToProcess.length} files to process in ${cwd}:\n` +
+        filesToProcess.map(f => `  - Will ${f.exists ? 'update' : 'create'} ${f.filename} (${f.language || 'auto-detect'})`).join('\n')
+      );
+    } else {
+      this.progress.failAction(SERON_ACTIONS.ANALYZING, 'No valid file operations found in response');
+      return;
+    }
+
+    // Process each file
+    for (const file of filesToProcess) {
       try {
-        // Check if file already exists
-        const fileExists = await this.fileSystem.fileExists(filePath);
-        
-        if (fileExists) {
+        // Create parent directory if needed
+        const dir = path.dirname(file.filePath);
+        this.progress.startAction(SERON_ACTIONS.ANALYZING, `checking directory ${dir}`);
+        await this.fileSystem.createDirectory(dir);
+        this.progress.completeAction(SERON_ACTIONS.ANALYZING, `directory ${dir} ready`);
+
+        if (file.exists) {
           // Edit existing file
-          this.progress.startAction(SERON_ACTIONS.EDITING_FILE, `${filename} in ${cwd}`);
-          await this.fileSystem.editFile(filePath, content);
-          this.progress.completeAction(SERON_ACTIONS.EDITING_FILE, `${filename} updated in ${cwd}`);
+          this.progress.startAction(SERON_ACTIONS.EDITING_FILE, `${file.filename} in ${cwd}`);
+          await this.fileSystem.editFile(file.filePath, file.content, file.language);
+          this.progress.completeAction(SERON_ACTIONS.EDITING_FILE, `${file.filename} updated in ${cwd}`);
         } else {
-          // Create new file with proper extension based on language
-          this.progress.startAction(SERON_ACTIONS.CREATING_FILE, `${filename} in ${cwd}`);
-          
-          // Ensure directory exists
-          const dir = path.dirname(filePath);
-          await this.fileSystem.createDirectory(dir);
-          
-          // Create file
-          await this.fileSystem.createFile(filePath, content, language);
-          this.progress.completeAction(SERON_ACTIONS.CREATING_FILE, `${filename} created in ${cwd}`);
+          // Create new file
+          this.progress.startAction(SERON_ACTIONS.CREATING_FILE, `${file.filename} in ${cwd}`);
+          await this.fileSystem.createFile(file.filePath, file.content, file.language);
+          this.progress.completeAction(SERON_ACTIONS.CREATING_FILE, `${file.filename} created in ${cwd}`);
         }
+
+        // Verify file exists and is readable
+        this.progress.startAction(SERON_ACTIONS.ANALYZING, `verifying ${file.filename}`);
+        const exists = await this.fileSystem.fileExists(file.filePath);
+        if (!exists) {
+          throw new Error(`File verification failed: ${file.filename} was not created`);
+        }
+        const content = await this.fileSystem.readFile(file.filePath);
+        if (!content) {
+          throw new Error(`File verification failed: ${file.filename} is empty`);
+        }
+        this.progress.completeAction(SERON_ACTIONS.ANALYZING, `${file.filename} verified successfully`);
       } catch (error) {
         this.progress.failAction(SERON_ACTIONS.CREATING_FILE, 
-          `Failed to process ${filename} in ${cwd}: ${error instanceof Error ? error.message : 'Unknown error'}`
+          `Failed to process ${file.filename} in ${cwd}: ${error instanceof Error ? error.message : 'Unknown error'}`
         );
       }
     }
 
-    // Parse and execute commands
+    // Handle commands after file creation
     const runCommandPattern = /\*\*SERON_RUN_COMMAND:\s*([^\*]+)\*\*/g;
     const commandsToRun = [];
     
-    // First collect all commands
+    // Collect all commands
     while ((match = runCommandPattern.exec(response)) !== null) {
       commandsToRun.push(match[1].trim());
     }
 
-    // Report command plan if any exist
+    // Report command plan
     if (commandsToRun.length > 0) {
       this.progress.startAction(SERON_ACTIONS.ANALYZING, 'planning commands');
       this.progress.completeAction(SERON_ACTIONS.ANALYZING, 
-        `Will run: ${commandsToRun.join(', ')} in ${cwd}`
+        `Will run ${commandsToRun.length} commands in ${cwd}:\n` +
+        commandsToRun.map(cmd => `  - ${cmd}`).join('\n')
       );
     }
     
-    // Execute commands in sequence
+    // Execute commands
     for (const command of commandsToRun) {
       try {
         this.progress.startAction(SERON_ACTIONS.RUNNING_COMMAND, `${command} in ${cwd}`);
         await this.fileSystem.runCommand(command, cwd);
-        this.progress.completeAction(SERON_ACTIONS.RUNNING_COMMAND, `${command} completed in ${cwd}`);
+        this.progress.completeAction(SERON_ACTIONS.RUNNING_COMMAND, `${command} completed successfully in ${cwd}`);
       } catch (error) {
         this.progress.failAction(SERON_ACTIONS.RUNNING_COMMAND, 
           `Failed to run ${command} in ${cwd}: ${error instanceof Error ? error.message : 'Unknown error'}`
         );
       }
+    }
+    
+    // Final verification
+    this.progress.startAction(SERON_ACTIONS.ANALYZING, 'final verification');
+    try {
+      for (const file of filesToProcess) {
+        const exists = await this.fileSystem.fileExists(file.filePath);
+        if (!exists) {
+          throw new Error(`Final verification failed: ${file.filename} is missing`);
+        }
+      }
+      this.progress.completeAction(SERON_ACTIONS.ANALYZING, 
+        `All operations completed successfully:\n` +
+        filesToProcess.map(f => `  ✓ ${f.filename}`).join('\n')
+      );
+    } catch (error) {
+      this.progress.failAction(SERON_ACTIONS.ANALYZING, 
+        `Final verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
